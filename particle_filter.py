@@ -45,6 +45,10 @@ class ParticleFilter:
         std = np.std(distanceArr)
         self.probSensorGivenLoc = scipy.stats.norm(mean, std).pdf
 
+
+    def resample(self, probability, particles):
+        pass
+
     def estimation(self):
         #step 1: create 100 randomly distributed particles
 
@@ -54,22 +58,30 @@ class ParticleFilter:
 
         #getting sensor readings for each of the random robots
         particleSense = []
-        for reading in (0, self.numParticles):
-            particleSense = self.map.closest_distance((particleX[reading], particleY[reading]), particleTheta[reading])
+        probabilities_toWeight = []
+        sumProbs = 0;
+        for reading in range(0, self.numParticles):
+            #sensor reading for each virtual robot
+            particleSense[reading] = self.map.closest_distance((particleX[reading], particleY[reading]), particleTheta[reading])
+            N = 1/sum(self.sumProbs)
+
+            #HERE: NEED TO GET WEIGHTS/PROBABILITIES OF THE NEW SAMPLES SOMEHOW??
+
+            probability = (self.particleSense[reading] * self.probLoc) * N
+            probabilities_toWeight[reading] = probability
 
         mean = np.average(particleSense)
         std = np.std(particleSense)
 
-        #getting P(robot@location x | sensor reading)
-        N = 1/sum(self.sumProbs)
-        probability = (self.probSensorGivenLoc * self.probLoc) * N
-
         #now that we have P(virtual robot), kill off useless ones
-        for value in particleSense:
+        resample(probability, particleSense)
 
-            #TO DO: compare probabilities of particle sensor values to probability defined above (line 65)
+        #TO DO: compare probabilities of particle sensor values to probability defined above (line 65)
 
         #updating probabilities
         self.probLoc = probability
         self.sumProbs += self.sumProbs
         #if particle is within 1 std deviation of mean value,
+
+
+
