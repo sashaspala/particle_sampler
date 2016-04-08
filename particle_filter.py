@@ -3,8 +3,8 @@ from scipy import stats, misc
 import time
 import lab10_map
 import math
-import factory
-
+from collections import namedtuple
+Particle = namedtuple("Particle", "index x y z theta")
 
 class ParticleFilter:
 
@@ -19,17 +19,20 @@ class ParticleFilter:
         #self.probSensorGivenLoc = 0
         self.numParticles = 100
         self.probLoc = []
-        for index in range(0, self.numParticles - 1):
-            self.probLoc.append(math.log(1) - math.log(self.numParticles))
-
-        self.sumProbs = 1/self.numParticles
+        for index in range(0, self.numParticles):
+            #self.probLoc.append(math.log(1) - math.log(self.numParticles))
+            self.probLoc.append(1/self.numParticles)
 
         self.realMean = 0
         self.realStd = 0
+
         self.particleSense = []
-        for index in range(0, self.numParticles-1):
+        for index in range(0, self.numParticles):
             self.particleSense.append(0)
 
+        self.round = 1
+        self.data = []
+        self.particlesToUse = []
         self.map = lab10_map.Map("lab10.map")
         #self.virtual_create.set_pose((0.5, 0.5, 0.1), math.pi)
 
@@ -41,7 +44,7 @@ class ParticleFilter:
         self.orientation = theta
 
     def senseOnce(self, create, sonar):
-        self.realStd = .001
+        self.realStd = .05
 
         """ distanceArr = []
         for x in range(0, self.numParticles-1):
@@ -60,63 +63,93 @@ class ParticleFilter:
 
     def estimation(self, sensedDistance, virtual_create):
         #step 1: create 100 randomly distributed particles
+        if(self.round == 1):
 
-        particleX = np.random.uniform(0, 3, self.numParticles)
-        particleY = np.random.uniform(0, 3, self.numParticles)
-        particleTheta = np.random.uniform(0,2*math.pi, self.numParticles)
+            particleX = np.random.uniform(0, 3, self.numParticles)
+            particleY = np.random.uniform(0, 3, self.numParticles)
+            particleTheta = np.random.uniform(0,2*math.pi, self.numParticles)
 
 
-        data = []
-        for index in range(0, self.numParticles-1):
-            data.append(particleX[index])
-            data.append(particleY[index])
-            data.append(0)
-            data.append(particleTheta[index])
-        virtual_create.set_pose((0.5, 0.5, 0.1), math.pi)
-        virtual_create.set_point_cloud(data)
+            #data = []
+            for index in range(0, self.numParticles):
+                self.data.append(particleX[index])
+                self.data.append(particleY[index])
+                self.data.append(0)
+                self.data.append(particleTheta[index])
 
+            virtual_create.set_pose((0.5, 0.5, 0.1), math.pi)
+            virtual_create.set_point_cloud(self.data)
+
+            # now add these values to the namedtuple to use later
+            for index in range(0, self.numParticles):
+                newParticle = Particle(index, particleX[index], particleY[index], 0, particleTheta[index])
+                self.particlesToUse.append(newParticle)
+
+            self.round += self.round
+        else:
+            index = 0
+            while index < len(self.data):
+                particleIndex = int(index/4)
+                self.data[index] = self.particlesToUse[particleIndex].x
+                self.data[index + 1] = self.particlesToUse[particleIndex].y
+                self.data[index  + 2] = self.particlesToUse[particleIndex].z
+                self.data[index + 3] = self.particlesToUse[particleIndex].theta
+                index = index + 4
+
+            virtual_create.set_pose((0.5, 0.5, 0.1), math.pi)
+            virtual_create.set_point_cloud(self.data)
         #getting sensor readings for each of the random robots
 
         probabilities_toWeight = []
         virtualProbSensor = []
-        for index in range(0, self.numParticles-1):
+        for index in range(0, self.numParticles):
             virtualProbSensor.append(0)
 
         sum = []
-        for reading in range(0, self.numParticles-1):
+        reading = 0
+        for reading in range(0, self.numParticles):
             #sensor reading for each virtual robot
-            self.particleSense[reading] = self.map.closest_distance((particleX[reading], particleY[reading]), particleTheta[reading])
-            #N = 1/self.sumProbs
+            self.particleSense[reading] = self.map.closest_distance((self.particlesToUse[reading].x, self.particlesToUse[reading].y), self.particlesToUse[reading].theta)
 
             #create random normal distribution and get probability
-            randDist = np.random.normal(self.realMean, self.realStd)
+            randDist = np.random.normal(np.average(self.particleSense[reading]), self.realStd)
+            virtualProbSensor[reading] = (stats.norm.pdf(sensedDistance, self.particleSense[reading], self.realStd))
 
-            virtualProbSensor[reading] = (stats.norm.pdf(sensedDistance, self.particleSense[reading], np.std(randDist)))
             #overall probability of this reading
             sum.append(virtualProbSensor[reading] * self.probLoc[reading])
 
+
+
         totalSum = 0
-        for prob in range(0, self.numParticles-1):
+        for prob in range(0, self.numParticles):
             totalSum = sum[prob] + totalSum
 
         N = 1/totalSum
-        for reading in range(0, self.numParticles-1):
+
+        arrayIndex = []
+        for reading in range(0, self.numParticles):
             probability = (virtualProbSensor[reading] * (self.probLoc[reading])) * N
             probabilities_toWeight.append(probability)
 
+            #cast list to array at same time
+            arrayIndex.append(self.particlesToUse[reading].index)
 
-        #DIVIDE BY ONE ERROR: probably coming from getting NaN or infinite value somewhere up here ^^^
 
         #now that we have P(virtual robot), kill off useless ones
-        resampledRobots = np.random.choice(self.particleSense, self.numParticles, True, probabilities_toWeight)
-        copyOfResample = []
-        for index in range(0, self.numParticles-1):
-            copyOfResample.append(resampledRobots[index])
-        print("Resampled: ", resampledRobots)
-        self.particleSense = resampledRobots
+        resampledRobots = np.random.choice(arrayIndex, self.numParticles, True, probabilities_toWeight)
+        print(resampledRobots)
+
+        #copy over new values
+        copyOfParticles = []
+        for index in range(0, self.numParticles):
+           for oldIndex in range(0, self.numParticles):
+               if(resampledRobots[index] == self.particlesToUse[oldIndex].index):
+                   copyOfParticles.append(self.particlesToUse[oldIndex])
+                   print(copyOfParticles[index].index)
+        self.particlesToUse = copyOfParticles
         #updating probabilities
-        self.probLoc = probabilities_toWeight
-        self.sumProbs += self.sumProbs
+        for index in range(0, len(self.probLoc)):
+                self.probLoc[index] = probabilities_toWeight[index]
         #if particle is within 1 std deviation of mean value,
 
 
