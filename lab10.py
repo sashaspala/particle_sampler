@@ -33,7 +33,7 @@ class Run:
 
         # This is an example on how to estimate the distance to a wall for the given
         # map, assuming the robot is at (0, 0) and has heading math.pi
-        print(self.map.closest_distance((0.5,0.5), math.pi))
+        #print(self.map.closest_distance((0.5,0.5), math.pi))
 
         self.create.start()
         self.create.safe()
@@ -47,22 +47,27 @@ class Run:
         self.pf.senseOnce(self.create, self.sonar)
         # This is an example on how to detect that a button was pressed in V-REP
         while True:
+            movement = False
+
             b = self.virtual_create.get_last_button()
             state = self.create.update()
             if b == self.virtual_create.Button.MoveForward:
                 self.create.drive_direct(100,100)
                 self.time.sleep(1)
                 self.create.drive_direct(0,0)
+                movement = True
                 print("Forward pressed!")
             elif b == self.virtual_create.Button.TurnLeft:
                 self.create.drive_direct(100,-100)
                 self.time.sleep(1.9)
                 self.create.drive_direct(0,0)
+                movement = True
                 print("Turn Left pressed!")
             elif b == self.virtual_create.Button.TurnRight:
                 self.create.drive_direct(-100,100)
                 self.time.sleep(1.9)
                 self.create.drive_direct(0,0)
+                movement = True
                 print("Turn Right pressed!")
             elif b == self.virtual_create.Button.Sense:
                 self.pf.sensing(self.create, self.sonar, self.virtual_create)
@@ -73,4 +78,6 @@ class Run:
             self.locationY = self.odometry.y
             self.orientation = self.odometry.theta
             self.pf.movement(self.locationX, self.locationY, self.orientation)
+            if(movement):
+               self.pf.sensing(self.create, self.sonar, self.virtual_create)
             self.time.sleep(0.01)

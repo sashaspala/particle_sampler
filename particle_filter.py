@@ -3,7 +3,7 @@ from scipy import stats, misc
 import time
 import lab10_map
 import math
-from collections import namedtuple
+from collections import namedtuple, Counter
 Particle = namedtuple("Particle", "index x y z theta")
 
 class ParticleFilter:
@@ -17,7 +17,7 @@ class ParticleFilter:
         self.distance = 0
 
         #self.probSensorGivenLoc = 0
-        self.numParticles = 100
+        self.numParticles = 1000
         self.probLoc = []
         for index in range(0, self.numParticles):
             #self.probLoc.append(math.log(1) - math.log(self.numParticles))
@@ -77,7 +77,7 @@ class ParticleFilter:
                 self.data.append(0)
                 self.data.append(particleTheta[index])
 
-            virtual_create.set_pose((0.5, 0.5, 0.1), math.pi)
+            #virtual_create.set_pose((0.5, 0.5, 0.1), math.pi)
             virtual_create.set_point_cloud(self.data)
 
             # now add these values to the namedtuple to use later
@@ -96,7 +96,7 @@ class ParticleFilter:
                 self.data[index + 3] = self.particlesToUse[particleIndex].theta
                 index = index + 4
 
-            virtual_create.set_pose((0.5, 0.5, 0.1), math.pi)
+
             virtual_create.set_point_cloud(self.data)
         #getting sensor readings for each of the random robots
 
@@ -107,6 +107,7 @@ class ParticleFilter:
 
         sum = []
         reading = 0
+
         for reading in range(0, self.numParticles):
             #sensor reading for each virtual robot
             self.particleSense[reading] = self.map.closest_distance((self.particlesToUse[reading].x, self.particlesToUse[reading].y), self.particlesToUse[reading].theta)
@@ -117,7 +118,6 @@ class ParticleFilter:
 
             #overall probability of this reading
             sum.append(virtualProbSensor[reading] * self.probLoc[reading])
-
 
 
         totalSum = 0
@@ -137,20 +137,37 @@ class ParticleFilter:
 
         #now that we have P(virtual robot), kill off useless ones
         resampledRobots = np.random.choice(arrayIndex, self.numParticles, True, probabilities_toWeight)
-        print(resampledRobots)
 
         #copy over new values
         copyOfParticles = []
+        count = Counter(arrayIndex)
+        mostLikely = count.most_common(1)
+        if mostLikely[0][1] >= (self.numParticles/3 *2): #if we assume at least 2/3 of the particles makes a good assumption
+            find = False
+        else:
+            find = True
+
+        found = False
         for index in range(0, self.numParticles):
            for oldIndex in range(0, self.numParticles):
                if(resampledRobots[index] == self.particlesToUse[oldIndex].index):
                    copyOfParticles.append(self.particlesToUse[oldIndex])
-                   print(copyOfParticles[index].index)
+                   if(resampledRobots[index] == mostLikely[0][0] and ~find):
+                        guess = self.particlesToUse[oldIndex]
+                        found = True
+
+        if(found):
+            virtual_create.set_pose((guess.x, guess.y, guess.z), guess.theta)
+
         self.particlesToUse = copyOfParticles
         #updating probabilities
         for index in range(0, len(self.probLoc)):
                 self.probLoc[index] = probabilities_toWeight[index]
         #if particle is within 1 std deviation of mean value,
+
+
+
+
 
 
 
